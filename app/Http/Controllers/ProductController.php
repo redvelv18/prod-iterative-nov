@@ -49,7 +49,7 @@ class ProductController extends Controller
     public function show(Product $product): View
     {
         return view('products.show', [
-            'product' => $product,
+            'product' => $product->load('tags'),
         ]);
     }
     // --------------------------------------------------------------------//

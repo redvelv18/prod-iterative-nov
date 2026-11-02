@@ -118,4 +118,58 @@ class ProductTest extends TestCase
 
         $product->removeStock(-2);
     }
+
+    public function test_add_tag_attaches_a_new_tag_to_the_product(): void
+    {
+        $product = Product::factory()->create();
+
+        $tag = $product->addTag('Organic');
+
+        $this->assertSame('Organic', $tag->name);
+        $this->assertDatabaseHas('tags', ['name' => 'Organic']);
+        $this->assertDatabaseHas('product_tag', [
+            'product_id' => $product->id,
+            'tag_id' => $tag->id,
+        ]);
+    }
+
+    public function test_add_tag_reuses_a_tag_already_used_by_another_product(): void
+    {
+        $first = Product::factory()->create();
+        $second = Product::factory()->create();
+
+        $tag = $first->addTag('Gift');
+        $second->addTag('GIFT');
+
+        $this->assertDatabaseCount('tags', 1);
+        $this->assertDatabaseCount('product_tag', 2);
+        $this->assertTrue($second->tags()->whereKey($tag->id)->exists());
+    }
+
+    public function test_add_tag_twice_does_not_duplicate_the_link(): void
+    {
+        $product = Product::factory()->create();
+
+        $product->addTag('Seasonal');
+        $product->addTag('seasonal');
+
+        $this->assertDatabaseCount('tags', 1);
+        $this->assertDatabaseCount('product_tag', 1);
+        $this->assertCount(1, $product->fresh()->tags);
+    }
+
+    public function test_remove_tag_detaches_the_link_but_keeps_the_tag(): void
+    {
+        $product = Product::factory()->create();
+        $tag = $product->addTag('Sale');
+
+        $product->removeTag($tag);
+
+        $this->assertDatabaseMissing('product_tag', [
+            'product_id' => $product->id,
+            'tag_id' => $tag->id,
+        ]);
+        $this->assertDatabaseHas('tags', ['id' => $tag->id, 'name' => 'Sale']);
+        $this->assertCount(0, $product->fresh()->tags);
+    }
 }

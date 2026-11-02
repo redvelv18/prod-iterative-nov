@@ -6,6 +6,7 @@ use App\Enums\ProductStatus;
 use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use InvalidArgumentException;
 
 class Product extends Model
@@ -90,5 +91,38 @@ class Product extends Model
         if ($amount < 1) {
             throw new InvalidArgumentException('A stock adjustment must cover at least one item.');
         }
+    }
+
+    /**
+     * The tags attached to this product.
+     *
+     * @return BelongsToMany<Tag>
+     */
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class)->orderBy('name');
+    }
+
+    /**
+     * Attach the tag with the given name, creating the tag when it is new.
+     *
+     * Attaching a tag the product already carries leaves the pivot
+     * untouched, and the tag itself is shared with other products.
+     */
+    public function addTag(string $name): Tag
+    {
+        $tag = Tag::findOrCreate($name);
+
+        $this->tags()->syncWithoutDetaching([$tag->getKey()]);
+
+        return $tag;
+    }
+
+    /**
+     * Detach the given tag, keeping the tag itself available for other products.
+     */
+    public function removeTag(Tag $tag): void
+    {
+        $this->tags()->detach($tag->getKey());
     }
 }

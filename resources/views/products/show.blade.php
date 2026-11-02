@@ -70,6 +70,63 @@
             </dd>
         </dl>
 
+        <section class="tag-section" aria-labelledby="tags-heading">
+            <h2 id="tags-heading">Tags</h2>
+
+            @if ($product->tags->isEmpty())
+                <p class="muted">No tags yet.</p>
+            @else
+                <ul class="tag-list">
+                    @foreach ($product->tags as $tag)
+                        <li class="tag-chip">
+                            {{ $tag->name }}
+
+                            <form
+                                class="inline"
+                                action="{{ route('products.tags.destroy', [$product, $tag]) }}"
+                                method="POST"
+                                onsubmit="return confirm('Remove tag &ldquo;{{ $tag->name }}&rdquo; from this product?')"
+                            >
+                                @csrf
+                                @method('DELETE')
+                                <button
+                                    class="tag-remove"
+                                    type="submit"
+                                    aria-label="Remove tag {{ $tag->name }}"
+                                >&times;</button>
+                            </form>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+
+            <form
+                class="tag-form"
+                action="{{ route('products.tags.store', $product) }}"
+                method="POST"
+            >
+                @csrf
+
+                <div class="form-field tag-form-field">
+                    <label for="tag-name">Add a tag</label>
+                    <input
+                        type="text"
+                        id="tag-name"
+                        name="name"
+                        value="{{ old('name') }}"
+                        maxlength="50"
+                        placeholder="e.g. organic"
+                        @error('name') class="input-invalid" @enderror
+                    >
+                    @error('name')
+                        <span class="field-error">{{ $message }}</span>
+                    @enderror
+                </div>
+
+                <button class="btn btn-secondary" type="submit">Add tag</button>
+            </form>
+        </section>
+
         <p class="form-actions">
             <a class="btn btn-secondary" href="{{ route('products.edit', $product) }}">Edit</a>
 
