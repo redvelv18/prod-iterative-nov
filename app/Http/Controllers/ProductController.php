@@ -7,6 +7,7 @@ use App\Models\Product;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use InvalidArgumentException;
 
 class ProductController extends Controller
 {
@@ -43,11 +44,50 @@ class ProductController extends Controller
     /**
      * Display the specified product.
      */
+    // --------------------------------------------------------------------//
     public function show(Product $product): View
     {
         return view('products.show', [
             'product' => $product,
         ]);
+    }
+    // --------------------------------------------------------------------//
+
+    /**
+     * Adjust the stock level of the specified product.
+     */
+    public function adjustQuantity(Request $request, Product $product): RedirectResponse
+    {
+        $validated = $request->validate([
+            'direction' => ['required', 'string', 'in:increase,decrease'],
+            'amount' => ['required', 'integer', 'min:1', 'max:1000'],
+        ]);
+
+        $amount = (int) $validated['amount'];
+        $delta = $validated['direction'] === 'increase' ? $amount : -$amount;
+
+        try {
+            $product->adjustStock($delta);
+        } catch (InvalidArgumentException) {
+            return redirect()
+                ->route('products.show', $product)
+                ->withErrors([
+                    'amount' => sprintf(
+                        'Only %d items are in stock, so %d cannot be removed.',
+                        $product->quantity,
+                        $amount,
+                    ),
+                ]);
+        }
+
+        return redirect()
+            ->route('products.show', $product)
+            ->with('status', sprintf(
+                'Stock %s by %d. New quantity: %d pcs.',
+                $delta > 0 ? 'increased' : 'decreased',
+                $amount,
+                $product->quantity,
+            ));
     }
 
     /**

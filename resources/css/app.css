@@ -544,6 +544,47 @@ textarea:focus-visible {
     margin: 0.2rem 0 0;
 }
 
+/* Inline stock controls on the product page */
+
+.quantity-value {
+    display: inline-block;
+    font-size: 1.15rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.quantity-adjust {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem;
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.quantity-adjust-field {
+    max-width: 7rem;
+    margin-bottom: 0;
+}
+
+.quantity-adjust-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.quantity-adjust .btn-danger {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+    color: var(--color-danger);
+}
+
+.quantity-adjust .btn-danger:hover {
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+}
+
 /* Alerts */
 
 .alert {

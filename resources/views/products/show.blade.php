@@ -1,6 +1,8 @@
 <x-layout :title="$product->name">
     <h1>{{ $product->name }}</h1>
 
+    <x-validation-errors />
+
     <div class="card">
         <dl class="product-details">
             <dt>Description</dt>
@@ -17,7 +19,48 @@
             <dd>{{ $product->expiration_date?->format('Y-m-d') ?? '—' }}</dd>
 
             <dt>Quantity</dt>
-            <dd>{{ $product->quantity }} pcs</dd>
+            <dd>
+                <span class="quantity-value" data-quantity>{{ $product->quantity }} pcs</span>
+
+                <form class="quantity-adjust" action="{{ route('products.quantity', $product) }}" method="POST">
+                    @csrf
+                    @method('PATCH')
+
+                    <div class="form-field quantity-adjust-field">
+                        <label for="amount">Amount</label>
+                        <input
+                            type="number"
+                            id="amount"
+                            name="amount"
+                            value="{{ old('amount', 1) }}"
+                            min="1"
+                            max="1000"
+                            @error('amount') class="input-invalid" @enderror
+                            required
+                        >
+                    </div>
+
+                    <div class="quantity-adjust-actions">
+                        <button class="btn btn-secondary" type="submit" name="direction" value="increase">
+                            <span aria-hidden="true">+</span> Add stock
+                        </button>
+                        <button class="btn btn-danger" type="submit" name="direction" value="decrease">
+                            <span aria-hidden="true">−</span> Remove stock
+                        </button>
+                    </div>
+                </form>
+
+                @error('amount')
+                    <span class="field-error">{{ $message }}</span>
+                @enderror
+                @error('direction')
+                    <span class="field-error">{{ $message }}</span>
+                @enderror
+
+                <p class="muted">
+                    Adding stock records a delivery (pievedums); removing stock records a sale (izpirkšana).
+                </p>
+            </dd>
         </dl>
 
         <p class="form-actions">
