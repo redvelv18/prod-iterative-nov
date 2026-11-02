@@ -73,57 +73,76 @@
         <section class="tag-section" aria-labelledby="tags-heading">
             <h2 id="tags-heading">Tags</h2>
 
-            @if ($product->tags->isEmpty())
-                <p class="muted">No tags yet.</p>
-            @else
-                <ul class="tag-list">
-                    @foreach ($product->tags as $tag)
-                        <li class="tag-chip">
-                            {{ $tag->name }}
-
-                            <form
-                                class="inline"
-                                action="{{ route('products.tags.destroy', [$product, $tag]) }}"
-                                method="POST"
-                                onsubmit="return confirm('Remove tag &ldquo;{{ $tag->name }}&rdquo; from this product?')"
-                            >
-                                @csrf
-                                @method('DELETE')
-                                <button
-                                    class="tag-remove"
-                                    type="submit"
-                                    aria-label="Remove tag {{ $tag->name }}"
-                                >&times;</button>
-                            </form>
-                        </li>
-                    @endforeach
-                </ul>
-            @endif
-
             <form
-                class="tag-form"
-                action="{{ route('products.tags.store', $product) }}"
+                class="tag-editor"
+                action="{{ route('products.tags.update', $product) }}"
                 method="POST"
+                data-tag-editor
+                data-suggest-url="{{ route('products.tags.suggest', $product) }}"
             >
                 @csrf
+                @method('PUT')
 
-                <div class="form-field tag-form-field">
-                    <label for="tag-name">Add a tag</label>
-                    <input
-                        type="text"
-                        id="tag-name"
-                        name="name"
-                        value="{{ old('name') }}"
-                        maxlength="50"
-                        placeholder="e.g. organic"
-                        @error('name') class="input-invalid" @enderror
-                    >
-                    @error('name')
-                        <span class="field-error">{{ $message }}</span>
-                    @enderror
+                <ul class="tag-list" data-tag-list aria-label="Current tags" aria-live="polite">
+                    @forelse ($product->tags as $tag)
+                        <li class="tag-chip" data-tag-chip="{{ $tag->name }}">
+                            {{ $tag->name }}
+
+                            <button
+                                type="button"
+                                class="tag-remove"
+                                data-tag-remove="{{ $tag->name }}"
+                                aria-label="Remove tag {{ $tag->name }}"
+                            >&times;</button>
+                        </li>
+                    @empty
+                        <li class="muted" data-tag-empty>No tags yet.</li>
+                    @endforelse
+                </ul>
+
+                {{--
+                    Mirrors of the chips above. The tag editor keeps them in
+                    sync as chips are added or removed, so the Update button
+                    submits the whole list in one PUT request. Without
+                    JavaScript the visible input still posts its own text.
+                --}}
+                <div class="tag-values" data-tag-values>
+                    @foreach ($product->tags as $tag)
+                        <input type="hidden" name="tags[]" value="{{ $tag->name }}" data-tag-value>
+                    @endforeach
                 </div>
 
-                <button class="btn btn-secondary" type="submit">Add tag</button>
+                <div class="tag-combobox">
+                    <label for="tag-name">Add a tag</label>
+
+                    <div class="tag-combobox-row">
+                        <input
+                            type="text"
+                            id="tag-name"
+                            name="tags[]"
+                            value=""
+                            maxlength="50"
+                            placeholder="Start typing a tag"
+                            autocomplete="off"
+                            data-tag-input
+                            role="combobox"
+                            aria-expanded="false"
+                            aria-controls="tag-suggestions"
+                            aria-autocomplete="list"
+                        >
+                        <button class="btn btn-secondary" type="button" data-tag-add>Add</button>
+                    </div>
+
+                    <ul
+                        class="tag-suggestions"
+                        id="tag-suggestions"
+                        role="listbox"
+                        data-tag-suggestions
+                        hidden
+                    ></ul>
+                </div>
+
+                <button class="btn btn-primary tag-update" type="submit" data-tag-update>Update</button>
             </form>
         </section>
 

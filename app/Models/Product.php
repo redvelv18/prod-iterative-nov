@@ -104,25 +104,25 @@ class Product extends Model
     }
 
     /**
-     * Attach the tag with the given name, creating the tag when it is new.
+     * Attach exactly the given tag names, creating the ones that are new.
      *
-     * Attaching a tag the product already carries leaves the pivot
-     * untouched, and the tag itself is shared with other products.
+     * Names are matched case-insensitively and duplicates collapse into
+     * a single tag. Tags missing from the list are detached from this
+     * product, while the tag rows themselves stay available to every
+     * other product.
+     *
+     * @param  list<string>  $names
      */
-    public function addTag(string $name): Tag
+    public function syncTags(array $names): void
     {
-        $tag = Tag::findOrCreate($name);
+        $ids = collect($names)
+            ->map(fn (mixed $name): string => trim((string) $name))
+            ->filter(fn (string $name): bool => $name !== '')
+            ->unique(fn (string $name): string => mb_strtolower($name))
+            ->map(fn (string $name): int => Tag::findOrCreate($name)->getKey())
+            ->values()
+            ->all();
 
-        $this->tags()->syncWithoutDetaching([$tag->getKey()]);
-
-        return $tag;
-    }
-
-    /**
-     * Detach the given tag, keeping the tag itself available for other products.
-     */
-    public function removeTag(Tag $tag): void
-    {
-        $this->tags()->detach($tag->getKey());
+        $this->tags()->sync($ids);
     }
 }

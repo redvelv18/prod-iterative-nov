@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
+use App\Models\Tag;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
@@ -10,18 +11,21 @@ class ProductTagTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_show_lists_the_products_tags_and_the_tag_form(): void
+    public function test_show_renders_the_tag_editor_with_the_current_tags(): void
     {
         $product = Product::factory()->create();
-        $product->addTag('Seasonal');
+        $product->syncTags(['Seasonal']);
 
         $response = $this->get(route('products.show', $product));
 
         $response->assertOk()
-            ->assertSee(route('products.tags.store', $product), false)
-            ->assertSee('Tags')
-            ->assertSee('Seasonal')
-            ->assertSee('Add a tag');
+            ->assertSee(route('products.tags.update', $product), false)
+            ->assertSee('data-tag-editor', false)
+            ->assertSee('data-tag-input', false)
+            ->assertSee('data-tag-suggestions', false)
+            ->assertSee('data-suggest-url="'.route('products.tags.suggest', $product), false)
+            ->assertSee('data-tag-chip="Seasonal"', false)
+            ->assertSee('Update');
     }
 
     public function test_show_explains_that_a_product_without_tags_has_none(): void
@@ -34,98 +38,149 @@ class ProductTagTest extends TestCase
             ->assertSee('No tags yet.');
     }
 
-    public function test_posting_a_new_tag_name_attaches_it_and_redirects_back(): void
+    public function test_put_attaches_existing_and_new_tags_in_one_request(): void
     {
         $product = Product::factory()->create();
+        Tag::findOrCreate('Sale');
 
-        $response = $this->post(route('products.tags.store', $product), [
-            'name' => 'Organic',
+        $response = $this->put(route('products.tags.update', $product), [
+            'tags' => ['Sale', 'Organic'],
         ]);
 
         $response->assertRedirect(route('products.show', $product))
-            ->assertSessionHas('status', 'Tag added.');
+            ->assertSessionHas('status', 'Tags updated.');
 
-        $this->assertDatabaseHas('tags', ['name' => 'Organic']);
-        $this->assertDatabaseHas('product_tag', ['product_id' => $product->id]);
+        $this->assertEqualsCanonicalizing(
+            ['Sale', 'Organic'],
+            $product->fresh()->tags->pluck('name')->all(),
+        );
+        $this->assertDatabaseCount('tags', 2);
     }
 
-    public function test_posting_an_existing_tag_name_shares_it_with_another_product(): void
+    public function test_put_shares_a_tag_between_products_instead_of_duplicating_it(): void
     {
         $first = Product::factory()->create();
         $second = Product::factory()->create();
 
-        $first->addTag('Gift');
-        $second->addTag('gift');
-
-        $this->post(route('products.tags.store', $first), ['name' => 'GIFT'])
-            ->assertRedirect(route('products.show', $first));
+        $this->put(route('products.tags.update', $first), ['tags' => ['Gift']]);
+        $this->put(route('products.tags.update', $second), ['tags' => ['gift']]);
 
         $this->assertDatabaseCount('tags', 1);
         $this->assertCount(1, $first->fresh()->tags);
+        $this->assertCount(1, $second->fresh()->tags);
     }
 
-    public function test_a_blank_tag_name_is_rejected(): void
+    public function test_put_detaches_the_tags_left_out_of_the_submitted_list(): void
+    {
+        $product = Product::factory()->create();
+        $product->syncTags(['Sale', 'Gift']);
+
+        $this->put(route('products.tags.update', $product), ['tags' => ['Sale']])
+            ->assertRedirect(route('products.show', $product));
+
+        $this->assertEqualsCanonicalizing(
+            ['Sale'],
+            $product->fresh()->tags->pluck('name')->all(),
+        );
+        $this->assertDatabaseHas('tags', ['name' => 'Gift']);
+    }
+
+    public function test_put_with_an_empty_list_clears_the_tags(): void
+    {
+        $product = Product::factory()->create();
+        $product->syncTags(['Sale']);
+
+        $this->put(route('products.tags.update', $product), ['tags' => []])
+            ->assertRedirect(route('products.show', $product));
+
+        $this->assertCount(0, $product->fresh()->tags);
+    }
+
+    public function test_put_accepts_a_tag_typed_without_javascript(): void
     {
         $product = Product::factory()->create();
 
         $response = $this
             ->from(route('products.show', $product))
-            ->post(route('products.tags.store', $product), ['name' => '']);
+            ->put(route('products.tags.update', $product), ['tags' => ['Local']]);
 
         $response->assertRedirect(route('products.show', $product))
-            ->assertSessionHasErrors('name');
+            ->assertSessionHas('status', 'Tags updated.');
 
+        $this->assertEqualsCanonicalizing(
+            ['Local'],
+            $product->fresh()->tags->pluck('name')->all(),
+        );
+    }
+
+    public function test_put_rejects_a_blank_tag_name(): void
+    {
+        $product = Product::factory()->create();
+
+        $response = $this
+            ->from(route('products.show', $product))
+            ->put(route('products.tags.update', $product), ['tags' => ['']]);
+
+        $response->assertRedirect(route('products.show', $product))
+            ->assertSessionHasErrors('tags.0');
+
+        $this->assertCount(0, $product->fresh()->tags);
         $this->assertDatabaseCount('tags', 0);
     }
 
-    public function test_a_tag_name_longer_than_fifty_characters_is_rejected(): void
+    public function test_put_rejects_a_tag_name_longer_than_fifty_characters(): void
     {
         $product = Product::factory()->create();
 
         $response = $this
             ->from(route('products.show', $product))
-            ->post(route('products.tags.store', $product), [
-                'name' => str_repeat('a', 51),
+            ->put(route('products.tags.update', $product), [
+                'tags' => [str_repeat('a', 51)],
             ]);
 
         $response->assertRedirect(route('products.show', $product))
-            ->assertSessionHasErrors('name');
+            ->assertSessionHasErrors('tags.0');
 
         $this->assertDatabaseCount('tags', 0);
     }
 
-    public function test_removing_a_tag_detaches_it_from_the_product(): void
+    public function test_suggest_returns_matching_tags_as_json(): void
     {
-        $product = Product::factory()->create();
-        $tag = $product->addTag('Sale');
+        Tag::findOrCreate('Seasonal');
+        Tag::findOrCreate('Clearance');
+        Tag::findOrCreate('Gift');
 
-        $response = $this->delete(
-            route('products.tags.destroy', [$product, $tag]),
+        $product = Product::factory()->create();
+
+        $response = $this->getJson(
+            route('products.tags.suggest', [$product, 'name' => 'sea']),
         );
 
-        $response->assertRedirect(route('products.show', $product))
-            ->assertSessionHas('status', 'Tag removed.');
-
-        $this->assertDatabaseMissing('product_tag', [
-            'product_id' => $product->id,
-            'tag_id' => $tag->id,
-        ]);
-        $this->assertDatabaseHas('tags', ['id' => $tag->id]);
+        $response->assertOk()
+            ->assertExactJson(['tags' => ['Seasonal']]);
     }
 
-    public function test_removing_a_tag_keeps_it_available_for_other_products(): void
+    public function test_suggest_still_returns_the_products_own_tags_for_the_editor_to_filter(): void
     {
-        $first = Product::factory()->create();
-        $second = Product::factory()->create();
+        $product = Product::factory()->create();
+        $product->syncTags(['Seasonal']);
+        Tag::findOrCreate('Seasonal Box');
 
-        $shared = $first->addTag('Gift');
-        $second->addTag('Gift');
+        $response = $this->getJson(
+            route('products.tags.suggest', [$product, 'name' => 'seas']),
+        );
 
-        $this->delete(route('products.tags.destroy', [$first, $shared]))
-            ->assertRedirect(route('products.show', $first));
+        $response->assertOk()
+            ->assertExactJson(['tags' => ['Seasonal', 'Seasonal Box']]);
+    }
 
-        $this->assertCount(0, $first->fresh()->tags);
-        $this->assertCount(1, $second->fresh()->tags);
-        $this->assertDatabaseHas('tags', ['id' => $shared->id]);
+    public function test_suggest_requires_a_query(): void
+    {
+        $product = Product::factory()->create();
+
+        $response = $this->getJson(route('products.tags.suggest', $product));
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors('name');
     }
 }

@@ -27,10 +27,18 @@ class FrontendAssetsTest extends TestCase
         $bundle = public_path('build/'.$manifest['resources/js/app.js']['file']);
 
         $this->assertFileExists($bundle);
+
+        $bundleContents = file_get_contents($bundle);
+
         $this->assertStringContainsString(
             'data-quantity-form',
-            file_get_contents($bundle),
+            $bundleContents,
             'resources/js/quantity.js was not bundled by Vite into resources/js/app.js.',
+        );
+        $this->assertStringContainsString(
+            'data-tag-editor',
+            $bundleContents,
+            'resources/js/tag-editor.js was not bundled by Vite into resources/js/app.js.',
         );
     }
 

@@ -601,7 +601,7 @@ textarea:focus-visible {
     color: var(--color-error-text);
 }
 
-/* Tags: shareable labels attached from the product page */
+/* Tags: shareable labels edited as chips on the product page */
 
 .tag-section {
     margin-top: 1.75rem;
@@ -645,16 +645,58 @@ textarea:focus-visible {
     cursor: pointer;
 }
 
-.tag-form {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 0.75rem;
+.tag-combobox {
+    position: relative;
+    max-width: 16rem;
 }
 
-.tag-form-field {
-    max-width: 16rem;
+.tag-combobox-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
+}
+
+.tag-combobox-row input {
+    flex: 1 1 auto;
+    min-width: 0;
     margin-bottom: 0;
+}
+
+.tag-values {
+    display: none;
+}
+
+.tag-suggestions {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
+    z-index: 5;
+    max-height: 14rem;
+    overflow-y: auto;
+    margin: 0.25rem 0 0;
+    padding: 0.25rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    box-shadow: var(--shadow);
+    list-style: none;
+}
+
+.tag-suggestion {
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.tag-suggestion:hover,
+.tag-suggestion[aria-selected='true'] {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+.tag-update {
+    margin-top: 1rem;
 }
 
 /* Alerts */

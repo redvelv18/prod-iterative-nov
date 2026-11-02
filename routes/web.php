@@ -8,11 +8,11 @@ Route::get('/', function () {
     return redirect()->route('products.index');
 })->name('home');
 
-Route::post('products/{product}/tags', [ProductTagController::class, 'store'])
-    ->name('products.tags.store');
+Route::put('products/{product}/tags', [ProductTagController::class, 'update'])
+    ->name('products.tags.update');
 
-Route::delete('products/{product}/tags/{tag}', [ProductTagController::class, 'destroy'])
-    ->name('products.tags.destroy');
+Route::get('products/{product}/tags/suggest', [ProductTagController::class, 'suggest'])
+    ->name('products.tags.suggest');
 
 Route::patch('products/{product}/quantity', [ProductController::class, 'adjustQuantity'])
     ->name('products.quantity');

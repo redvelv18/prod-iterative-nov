@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\TagFactory;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -46,5 +47,29 @@ class Tag extends Model
         return static::whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
             ->first()
             ?? static::create(['name' => $name]);
+    }
+
+    /**
+     * Existing tags whose name contains the given text, for autocompletion.
+     *
+     * SQL wildcards are stripped from the query so the match stays a
+     * literal one, and the results are capped and alphabetically ordered
+     * so a keystroke stays cheap to answer.
+     *
+     * @return EloquentCollection<int, Tag>
+     */
+    public static function search(string $query): EloquentCollection
+    {
+        $needle = str_replace(['%', '_'], '', mb_strtolower(trim($query)));
+
+        if ($needle === '') {
+            return new EloquentCollection;
+        }
+
+        return static::query()
+            ->whereRaw('LOWER(name) LIKE ?', ['%'.$needle.'%'])
+            ->orderBy('name')
+            ->limit(10)
+            ->get();
     }
 }

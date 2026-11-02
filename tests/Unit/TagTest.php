@@ -52,8 +52,8 @@ class TagTest extends TestCase
         $first = Product::factory()->create();
         $second = Product::factory()->create();
 
-        $first->addTag($tag->name);
-        $second->addTag($tag->name);
+        $first->syncTags([$tag->name]);
+        $second->syncTags([$tag->name]);
 
         $this->assertDatabaseCount('tags', 1);
         $this->assertEqualsCanonicalizing(
@@ -62,15 +62,51 @@ class TagTest extends TestCase
         );
     }
 
-    public function test_products_relation_lists_the_attached_tags(): void
+    public function test_search_matches_tag_names_ignoring_letter_case(): void
     {
-        $product = Product::factory()->create();
-        $product->addTag('Gift');
-        $product->addTag('Seasonal');
+        Tag::findOrCreate('Seasonal');
+        Tag::findOrCreate('Clearance');
+        Tag::findOrCreate('Gift');
 
-        $this->assertEqualsCanonicalizing(
-            ['Gift', 'Seasonal'],
-            $product->fresh()->tags->pluck('name')->all(),
-        );
+        $matches = Tag::search('sea');
+
+        $this->assertSame(['Seasonal'], $matches->pluck('name')->all());
+    }
+
+    public function test_search_returns_several_matches_in_alphabetical_order(): void
+    {
+        Tag::findOrCreate('Bakery Sale');
+        Tag::findOrCreate('Autumn Sale');
+        Tag::findOrCreate('Clearance');
+
+        $matches = Tag::search('sale');
+
+        $this->assertSame(['Autumn Sale', 'Bakery Sale'], $matches->pluck('name')->all());
+    }
+
+    public function test_search_ignores_sql_wildcards_in_the_query(): void
+    {
+        Tag::findOrCreate('Sale');
+        Tag::findOrCreate('Gift');
+
+        // Wildcards are stripped, so they narrow the match instead of widening it.
+        $this->assertCount(1, Tag::search('sa%'));
+        $this->assertCount(0, Tag::search('%'));
+    }
+
+    public function test_search_returns_nothing_for_a_blank_query(): void
+    {
+        Tag::findOrCreate('Sale');
+
+        $this->assertCount(0, Tag::search('   '));
+    }
+
+    public function test_search_caps_the_number_of_suggestions(): void
+    {
+        foreach (range(1, 15) as $index) {
+            Tag::findOrCreate(sprintf('Discount %02d', $index));
+        }
+
+        $this->assertCount(10, Tag::search('discount'));
     }
 }

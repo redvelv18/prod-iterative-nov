@@ -119,57 +119,75 @@ class ProductTest extends TestCase
         $product->removeStock(-2);
     }
 
-    public function test_add_tag_attaches_a_new_tag_to_the_product(): void
+    public function test_sync_tags_creates_new_tags_and_attaches_them(): void
     {
         $product = Product::factory()->create();
 
-        $tag = $product->addTag('Organic');
+        $product->syncTags(['Organic', 'Sale']);
 
-        $this->assertSame('Organic', $tag->name);
-        $this->assertDatabaseHas('tags', ['name' => 'Organic']);
-        $this->assertDatabaseHas('product_tag', [
-            'product_id' => $product->id,
-            'tag_id' => $tag->id,
-        ]);
+        $this->assertDatabaseCount('tags', 2);
+        $this->assertEqualsCanonicalizing(
+            ['Organic', 'Sale'],
+            $product->fresh()->tags->pluck('name')->all(),
+        );
     }
 
-    public function test_add_tag_reuses_a_tag_already_used_by_another_product(): void
+    public function test_sync_tags_reuses_a_tag_already_used_by_another_product(): void
     {
         $first = Product::factory()->create();
         $second = Product::factory()->create();
 
-        $tag = $first->addTag('Gift');
-        $second->addTag('GIFT');
+        $first->syncTags(['Gift']);
+        $second->syncTags(['GIFT']);
 
         $this->assertDatabaseCount('tags', 1);
         $this->assertDatabaseCount('product_tag', 2);
-        $this->assertTrue($second->tags()->whereKey($tag->id)->exists());
     }
 
-    public function test_add_tag_twice_does_not_duplicate_the_link(): void
+    public function test_sync_tags_collapses_duplicates_within_the_payload(): void
     {
         $product = Product::factory()->create();
 
-        $product->addTag('Seasonal');
-        $product->addTag('seasonal');
+        $product->syncTags(['Seasonal', 'seasonal', ' SEASONAL ']);
 
         $this->assertDatabaseCount('tags', 1);
-        $this->assertDatabaseCount('product_tag', 1);
         $this->assertCount(1, $product->fresh()->tags);
     }
 
-    public function test_remove_tag_detaches_the_link_but_keeps_the_tag(): void
+    public function test_sync_tags_detaches_tags_missing_from_the_payload_but_keeps_them(): void
     {
         $product = Product::factory()->create();
-        $tag = $product->addTag('Sale');
+        $product->syncTags(['Sale', 'Gift']);
 
-        $product->removeTag($tag);
+        $product->syncTags(['Sale']);
 
-        $this->assertDatabaseMissing('product_tag', [
-            'product_id' => $product->id,
-            'tag_id' => $tag->id,
-        ]);
-        $this->assertDatabaseHas('tags', ['id' => $tag->id, 'name' => 'Sale']);
+        $remaining = $product->fresh()->tags->pluck('name')->all();
+
+        $this->assertSame(['Sale'], $remaining);
+        $this->assertDatabaseHas('tags', ['name' => 'Gift']);
+    }
+
+    public function test_sync_tags_with_an_empty_payload_clears_every_tag(): void
+    {
+        $product = Product::factory()->create();
+        $product->syncTags(['Sale']);
+
+        $product->syncTags([]);
+
         $this->assertCount(0, $product->fresh()->tags);
+        $this->assertDatabaseCount('tags', 1);
+    }
+
+    public function test_sync_tags_ignores_blank_names(): void
+    {
+        $product = Product::factory()->create();
+
+        $product->syncTags(['', '   ', 'Sale']);
+
+        $this->assertDatabaseCount('tags', 1);
+        $this->assertEqualsCanonicalizing(
+            ['Sale'],
+            $product->fresh()->tags->pluck('name')->all(),
+        );
     }
 }
