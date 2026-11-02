@@ -101,6 +101,92 @@ class ProductControllerTest extends TestCase
             ->assertSee((string) $product->quantity);
     }
 
+    public function test_show_offers_controls_to_adjust_the_stock_level(): void
+    {
+        $product = Product::factory()->create();
+
+        $response = $this->get(route('products.show', $product));
+
+        $response->assertOk()
+            ->assertSee(route('products.quantity', $product), false)
+            ->assertSee('Add stock')
+            ->assertSee('Remove stock');
+    }
+
+    public function test_adjust_quantity_increases_the_stock_and_redirects_back(): void
+    {
+        $product = Product::factory()->create(['quantity' => 4]);
+
+        $response = $this->patch(route('products.quantity', $product), [
+            'direction' => 'increase',
+            'amount' => 6,
+        ]);
+
+        $response->assertRedirect(route('products.show', $product))
+            ->assertSessionHas('status', 'Stock increased by 6. New quantity: 10 pcs.');
+
+        $this->assertSame(10, $product->fresh()->quantity);
+    }
+
+    public function test_adjust_quantity_decreases_the_stock_and_redirects_back(): void
+    {
+        $product = Product::factory()->create(['quantity' => 9]);
+
+        $response = $this->patch(route('products.quantity', $product), [
+            'direction' => 'decrease',
+            'amount' => 4,
+        ]);
+
+        $response->assertRedirect(route('products.show', $product))
+            ->assertSessionHas('status', 'Stock decreased by 4. New quantity: 5 pcs.');
+
+        $this->assertSame(5, $product->fresh()->quantity);
+    }
+
+    public function test_adjust_quantity_rejects_removing_more_items_than_are_in_stock(): void
+    {
+        $product = Product::factory()->create(['quantity' => 3]);
+
+        $response = $this->patch(route('products.quantity', $product), [
+            'direction' => 'decrease',
+            'amount' => 4,
+        ]);
+
+        $response->assertRedirect(route('products.show', $product))
+            ->assertSessionHasErrors([
+                'amount' => 'Only 3 items are in stock, so 4 cannot be removed.',
+            ]);
+
+        $this->assertSame(3, $product->fresh()->quantity);
+    }
+
+    public static function invalidAdjustmentPayloads(): array
+    {
+        return [
+            'missing direction' => [['amount' => 1], 'direction'],
+            'unknown direction' => [['direction' => 'sideways', 'amount' => 1], 'direction'],
+            'zero amount' => [['direction' => 'increase', 'amount' => 0], 'amount'],
+            'negative amount' => [['direction' => 'decrease', 'amount' => -2], 'amount'],
+            'non-numeric amount' => [['direction' => 'increase', 'amount' => 'many'], 'amount'],
+            'amount above the limit' => [['direction' => 'increase', 'amount' => 1001], 'amount'],
+        ];
+    }
+
+    #[DataProvider('invalidAdjustmentPayloads')]
+    public function test_adjust_quantity_rejects_invalid_payloads(array $payload, string $field): void
+    {
+        $product = Product::factory()->create(['quantity' => 5]);
+
+        $response = $this
+            ->from(route('products.show', $product))
+            ->patch(route('products.quantity', $product), $payload);
+
+        $response->assertRedirect(route('products.show', $product))
+            ->assertSessionHasErrors($field);
+
+        $this->assertSame(5, $product->fresh()->quantity);
+    }
+
     public function test_edit_shows_the_form_filled_with_current_values(): void
     {
         $product = Product::factory()->create();
