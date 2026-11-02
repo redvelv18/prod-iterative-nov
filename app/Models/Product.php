@@ -38,29 +38,57 @@ class Product extends Model
     ];
 
     /**
-     * Adjust the stock level by the given delta.
+     * Add the delivered items to the stock ("pievedums").
      *
-     * A positive delta models a delivery arriving at the store
-     * ("pievedums"), while a negative delta models a sale or
-     * redemption ("izpirkšana").
-     *
+     * @param  int  $amount  How many items arrived.
      * @return int The updated quantity.
      *
-     * @throws InvalidArgumentException When more stock is removed than is available.
+     * @throws InvalidArgumentException When the amount does not cover at least one item.
      */
-    public function adjustStock(int $delta): int
+    public function addStock(int $amount): int
     {
-        $newQuantity = $this->quantity + $delta;
+        $this->guardAgainstInvalidAmount($amount);
 
-        if ($newQuantity < 0) {
-            throw new InvalidArgumentException(
-                sprintf('Cannot remove %d items, only %d are in stock.', abs($delta), $this->quantity)
-            );
-        }
-
-        $this->quantity = $newQuantity;
+        $this->quantity += $amount;
         $this->save();
 
         return $this->quantity;
+    }
+
+    /**
+     * Take the sold or written off items out of the stock ("izpirkšana").
+     *
+     * @param  int  $amount  How many items left the store.
+     * @return int The updated quantity.
+     *
+     * @throws InvalidArgumentException When the amount does not cover at least one item,
+     *                                  or more items are taken than are in stock.
+     */
+    public function removeStock(int $amount): int
+    {
+        $this->guardAgainstInvalidAmount($amount);
+
+        if ($amount > $this->quantity) {
+            throw new InvalidArgumentException(
+                sprintf('Cannot remove %d items, only %d are in stock.', $amount, $this->quantity)
+            );
+        }
+
+        $this->quantity -= $amount;
+        $this->save();
+
+        return $this->quantity;
+    }
+
+    /**
+     * Reject adjustments that do not describe a whole number of items.
+     *
+     * @throws InvalidArgumentException When the amount is zero, negative or empty.
+     */
+    private function guardAgainstInvalidAmount(int $amount): void
+    {
+        if ($amount < 1) {
+            throw new InvalidArgumentException('A stock adjustment must cover at least one item.');
+        }
     }
 }

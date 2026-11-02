@@ -64,10 +64,12 @@ class ProductController extends Controller
         ]);
 
         $amount = (int) $validated['amount'];
-        $delta = $validated['direction'] === 'increase' ? $amount : -$amount;
+        $isDelivery = $validated['direction'] === 'increase';
 
         try {
-            $product->adjustStock($delta);
+            $quantity = $isDelivery
+                ? $product->addStock($amount)
+                : $product->removeStock($amount);
         } catch (InvalidArgumentException) {
             return redirect()
                 ->route('products.show', $product)
@@ -84,9 +86,9 @@ class ProductController extends Controller
             ->route('products.show', $product)
             ->with('status', sprintf(
                 'Stock %s by %d. New quantity: %d pcs.',
-                $delta > 0 ? 'increased' : 'decreased',
+                $isDelivery ? 'increased' : 'decreased',
                 $amount,
-                $product->quantity,
+                $quantity,
             ));
     }
 
