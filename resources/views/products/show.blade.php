@@ -22,7 +22,12 @@
             <dd>
                 <span class="quantity-value" data-quantity>{{ $product->quantity }} pcs</span>
 
-                <form class="quantity-adjust" action="{{ route('products.quantity', $product) }}" method="POST">
+                <form
+                    class="quantity-adjust"
+                    action="{{ route('products.quantity', $product) }}"
+                    method="POST"
+                    data-quantity-form
+                >
                     @csrf
                     @method('PATCH')
 
@@ -49,6 +54,8 @@
                         </button>
                     </div>
                 </form>
+
+                <p class="quantity-feedback" data-quantity-feedback role="status" aria-live="polite" hidden></p>
 
                 @error('amount')
                     <span class="field-error">{{ $message }}</span>

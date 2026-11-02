@@ -585,6 +585,22 @@ textarea:focus-visible {
     color: var(--color-danger);
 }
 
+/* Status/error line filled in by quantity.js after a Fetch request */
+
+.quantity-feedback {
+    margin: 0.75rem 0 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.quantity-feedback--success {
+    color: var(--color-success-text);
+}
+
+.quantity-feedback--error {
+    color: var(--color-error-text);
+}
+
 /* Alerts */
 
 .alert {

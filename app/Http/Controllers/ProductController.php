@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ProductStatus;
 use App\Models\Product;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -55,8 +56,10 @@ class ProductController extends Controller
 
     /**
      * Adjust the stock level of the specified product.
+     *
+     * Browser submissions get a redirect, Fetch API requests get JSON.
      */
-    public function adjustQuantity(Request $request, Product $product): RedirectResponse
+    public function adjustQuantity(Request $request, Product $product): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'direction' => ['required', 'string', 'in:increase,decrease'],
@@ -71,25 +74,41 @@ class ProductController extends Controller
                 ? $product->addStock($amount)
                 : $product->removeStock($amount);
         } catch (InvalidArgumentException) {
+            $message = sprintf(
+                'Only %d items are in stock, so %d cannot be removed.',
+                $product->quantity,
+                $amount,
+            );
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $message,
+                    'errors' => ['amount' => [$message]],
+                ], 422);
+            }
+
             return redirect()
                 ->route('products.show', $product)
-                ->withErrors([
-                    'amount' => sprintf(
-                        'Only %d items are in stock, so %d cannot be removed.',
-                        $product->quantity,
-                        $amount,
-                    ),
-                ]);
+                ->withErrors(['amount' => $message]);
+        }
+
+        $status = sprintf(
+            'Stock %s by %d. New quantity: %d pcs.',
+            $isDelivery ? 'increased' : 'decreased',
+            $amount,
+            $quantity,
+        );
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $status,
+                'quantity' => $quantity,
+            ]);
         }
 
         return redirect()
             ->route('products.show', $product)
-            ->with('status', sprintf(
-                'Stock %s by %d. New quantity: %d pcs.',
-                $isDelivery ? 'increased' : 'decreased',
-                $amount,
-                $quantity,
-            ));
+            ->with('status', $status);
     }
 
     /**

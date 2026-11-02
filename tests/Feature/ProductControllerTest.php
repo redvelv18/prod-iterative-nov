@@ -187,6 +187,89 @@ class ProductControllerTest extends TestCase
         $this->assertSame(5, $product->fresh()->quantity);
     }
 
+    public function test_show_exposes_the_hooks_the_quantity_script_binds_to(): void
+    {
+        $product = Product::factory()->create();
+
+        $response = $this->get(route('products.show', $product));
+
+        $response->assertOk()
+            ->assertSee('data-quantity-form', false)
+            ->assertSee('data-quantity', false)
+            ->assertSee('data-quantity-feedback', false);
+    }
+
+    public function test_ajax_increase_returns_json_with_the_new_quantity(): void
+    {
+        $product = Product::factory()->create(['quantity' => 4]);
+
+        $response = $this->patchJson(route('products.quantity', $product), [
+            'direction' => 'increase',
+            'amount' => 6,
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'message' => 'Stock increased by 6. New quantity: 10 pcs.',
+                'quantity' => 10,
+            ]);
+
+        $this->assertSame(10, $product->fresh()->quantity);
+    }
+
+    public function test_ajax_decrease_returns_json_with_the_new_quantity(): void
+    {
+        $product = Product::factory()->create(['quantity' => 9]);
+
+        $response = $this->patchJson(route('products.quantity', $product), [
+            'direction' => 'decrease',
+            'amount' => 4,
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'message' => 'Stock decreased by 4. New quantity: 5 pcs.',
+                'quantity' => 5,
+            ]);
+
+        $this->assertSame(5, $product->fresh()->quantity);
+    }
+
+    public function test_ajax_over_removal_returns_a_json_error_and_keeps_the_stock(): void
+    {
+        $product = Product::factory()->create(['quantity' => 3]);
+
+        $response = $this->patchJson(route('products.quantity', $product), [
+            'direction' => 'decrease',
+            'amount' => 4,
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'message' => 'Only 3 items are in stock, so 4 cannot be removed.',
+                'errors' => [
+                    'amount' => ['Only 3 items are in stock, so 4 cannot be removed.'],
+                ],
+            ]);
+
+        $this->assertSame(3, $product->fresh()->quantity);
+    }
+
+    public function test_ajax_invalid_payload_returns_validation_errors_as_json(): void
+    {
+        $product = Product::factory()->create(['quantity' => 5]);
+
+        $response = $this->patchJson(route('products.quantity', $product), [
+            'direction' => 'increase',
+            'amount' => 0,
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['amount' => 'The amount field must be at least 1.']);
+
+        $this->assertSame(5, $product->fresh()->quantity);
+    }
+
     public function test_edit_shows_the_form_filled_with_current_values(): void
     {
         $product = Product::factory()->create();
